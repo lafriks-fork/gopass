@@ -33,6 +33,7 @@ func (s *Action) OTP(c *cli.Context) error {
 	qrf := c.String("qr")
 	clip := c.Bool("clip")
 	pw := c.Bool("password")
+	comb := c.Bool("combined")
 	snip := c.Bool("snip")
 
 	if snip {
@@ -53,7 +54,7 @@ func (s *Action) OTP(c *cli.Context) error {
 		out.Print(ctx, "Value written, carrying on to display OTP value from it.")
 	}
 
-	return s.otp(ctx, name, qrf, clip, pw, true)
+	return s.otp(ctx, name, qrf, clip, pw, comb, true)
 }
 
 func tickingBar(ctx context.Context, expiresAt time.Time, bar *termio.ProgressBar) {
@@ -105,10 +106,10 @@ func waitForKeyPress(ctx context.Context, cancel context.CancelFunc) (func(), fu
 }
 
 // nolint: cyclop
-func (s *Action) otp(ctx context.Context, name, qrf string, clip, pw, recurse bool) error {
+func (s *Action) otp(ctx context.Context, name, qrf string, clip, pw, comb, recurse bool) error {
 	sec, err := s.Store.Get(ctx, name)
 	if err != nil {
-		return s.otpHandleError(ctx, name, qrf, clip, pw, recurse, err)
+		return s.otpHandleError(ctx, name, qrf, clip, pw, comb, recurse, err)
 	}
 
 	outerCtx := ctx
@@ -172,6 +173,10 @@ func (s *Action) otp(ctx context.Context, name, qrf string, clip, pw, recurse bo
 			debug.Log("Saved counter as %d", counter)
 		}
 
+		if comb {
+			token = sec.Password() + token
+		}
+
 		now := time.Now()
 		expiresAt := now.Add(time.Duration(two.Period()) * time.Second).Truncate(time.Duration(two.Period()) * time.Second)
 		secondsLeft := int(time.Until(expiresAt).Seconds())
@@ -231,14 +236,14 @@ func (s *Action) otp(ctx context.Context, name, qrf string, clip, pw, recurse bo
 	}
 }
 
-func (s *Action) otpHandleError(ctx context.Context, name, qrf string, clip, pw, recurse bool, err error) error {
+func (s *Action) otpHandleError(ctx context.Context, name, qrf string, clip, pw, comb, recurse bool, err error) error {
 	if !errors.Is(err, store.ErrNotFound) || !recurse || !ctxutil.IsTerminal(ctx) {
 		return exit.Error(exit.Unknown, err, "failed to retrieve secret %q: %s", name, err)
 	}
 
 	out.Printf(ctx, "Entry %q not found. Starting search...", name)
 	cb := func(ctx context.Context, c *cli.Context, name string, recurse bool) error {
-		return s.otp(ctx, name, qrf, clip, pw, false)
+		return s.otp(ctx, name, qrf, clip, pw, comb, false)
 	}
 	if err := s.find(ctx, nil, name, cb, false); err != nil {
 		return exit.Error(exit.NotFound, err, "%s", err)

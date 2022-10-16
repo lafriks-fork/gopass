@@ -59,7 +59,7 @@ func TestOTP(t *testing.T) {
 
 	t.Run("copy to clipboard", func(t *testing.T) {
 		defer buf.Reset()
-		require.NoError(t, act.otp(ctx, "bar", "", true, false, false))
+		require.NoError(t, act.otp(ctx, "bar", "", true, false, false, false))
 	})
 
 	t.Run("write QR file", func(t *testing.T) {
